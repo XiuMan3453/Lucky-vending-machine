@@ -110,6 +110,41 @@ public sealed class VendingStockingServiceTests
         CollectionAssert.AreNotEqual(before, after);
     }
 
+    [Test]
+    public void BuildWeightedPool_CanLimitOffersToCommonRarity()
+    {
+        var catalogObject = new GameObject("Catalog");
+        try
+        {
+            var catalog = catalogObject.AddComponent<VendingCatalog>();
+            var commonPool = catalog.BuildWeightedPool("普通");
+
+            Assert.IsNotEmpty(commonPool);
+            Assert.IsTrue(commonPool.All(item => item.rarity == "普通"));
+            Assert.GreaterOrEqual(commonPool.Select(item => item.id).Distinct().Count(), 3);
+        }
+        finally
+        {
+            Object.DestroyImmediate(catalogObject);
+        }
+    }
+
+    [Test]
+    public void Score_ReportsSlotEarningsForOccupiedSlots()
+    {
+        var shelf = new VendingItemDefinition[VendingScoringService.SlotCount];
+        shelf[0] = CreateItem("water");
+        shelf[1] = CreateItem("soda");
+
+        var result = VendingScoringService.Score(shelf, "饮料");
+
+        Assert.IsTrue(result.SlotEarnings.ContainsKey(0));
+        Assert.IsTrue(result.SlotEarnings.ContainsKey(1));
+        Assert.Greater(result.SlotEarnings[0], 0);
+        Assert.Greater(result.SlotEarnings[1], 0);
+        Assert.AreEqual(result.Total, result.SlotEarnings.Values.Sum());
+    }
+
     private static VendingItemDefinition CreateItem(string id)
     {
         if (id == "coffee")

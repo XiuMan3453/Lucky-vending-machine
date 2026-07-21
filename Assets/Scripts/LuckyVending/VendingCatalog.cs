@@ -43,17 +43,27 @@ public sealed class VendingCatalog : MonoBehaviour
         return items.First(item => item.id == id);
     }
 
-    public List<VendingItemDefinition> BuildWeightedPool()
+    public List<VendingItemDefinition> BuildWeightedPool(string rarityFilter = null)
     {
         EnsureDefaults();
         var weighted = new List<VendingItemDefinition>();
         foreach (var item in items)
         {
+            if (!string.IsNullOrEmpty(rarityFilter) && item.rarity != rarityFilter)
+            {
+                continue;
+            }
+
             int weight = item.rarity == "普通" ? 5 : item.rarity == "优质" ? 3 : item.rarity == "稀有" ? 2 : 1;
             for (int i = 0; i < weight; i++)
             {
                 weighted.Add(item);
             }
+        }
+
+        if (weighted.Count == 0)
+        {
+            throw new System.InvalidOperationException("没有可用的商品候选。");
         }
 
         return weighted;

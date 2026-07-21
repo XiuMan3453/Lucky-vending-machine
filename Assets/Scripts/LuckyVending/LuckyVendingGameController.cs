@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -12,6 +13,7 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     public VendingHudView hudView;
     public RestockChoiceView[] restockChoices;
 
+    private const int InitialPickCount = 4;
     private readonly VendingItemDefinition[] shelf = new VendingItemDefinition[VendingScoringService.SlotCount];
     private readonly System.Random rng = new System.Random();
     private readonly int[] stageTargets = { 260, 620, 1050 };
@@ -25,11 +27,15 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     private int selectedSwapIndex = -1;
     private bool swapMode;
     private bool runEnded;
+    private bool sequenceRunning;
+    private int initialPicksRemaining;
     private string preferredTag = "早餐";
+    private GameObject offerPopup;
 
     private void Awake()
     {
         catalog.EnsureDefaults();
+        offerPopup = ResolveOfferPopup();
         shelfView.Bind(SelectShelfSlot);
         hudView.Bind(ToggleSwapMode, StartNewRun);
     }
@@ -51,71 +57,121 @@ public sealed class LuckyVendingGameController : MonoBehaviour
         selectedSwapIndex = -1;
         swapMode = false;
         runEnded = false;
-
-        AddStartingItem("water", 0);
-        AddStartingItem("soda", 1);
-        AddStartingItem("chips", 4);
-        AddStartingItem("coffee", 5);
+        sequenceRunning = false;
+        initialPicksRemaining = InitialPickCount;
 
         PickCustomerTag();
         shelfView.Render(shelf, null);
-        hudView.SetStatus(ChineseTextConfig.InitialStatus);
+        hudView.SetStatus(ChineseTextConfig.InitialPickStatus(initialPicksRemaining));
         hudView.SetLog(new[] { ChineseTextConfig.InitialLogMatchingTags, ChineseTextConfig.InitialLogNoRandomFill, ChineseTextConfig.InitialLogSpinAfterPick });
         RenderHud();
-        PrepareOffers();
+        PrepareInitialOffers();
     }
 
-    private void AddStartingItem(string id, int slot)
-    {
-        var item = catalog.GetById(id);
-        shelf[slot] = item;
-    }
-
-    private void PrepareOffers()
+    private void PrepareInitialOffers()
     {
         if (runEnded)
         {
-            SetOffersInteractable(false);
+            SetOfferPopupVisible(false);
             return;
         }
 
-        var offers = new List<VendingItemDefinition>();
-        var weighted = catalog.BuildWeightedPool();
-        while (offers.Count < restockChoices.Length)
+        hudView.SetStatus(ChineseTextConfig.InitialPickStatus(initialPicksRemaining));
+        SetOffers(BuildOffers("普通"), ChooseInitialItem);
+        SetOfferPopupVisible(true);
+    }
+
+    private void PrepareRestockOffers()
+    {
+        if (runEnded)
         {
-            var candidate = weighted[rng.Next(weighted.Count)];
-            if (!offers.Contains(candidate))
-            {
-                offers.Add(candidate);
-            }
+            SetOfferPopupVisible(false);
+            return;
         }
 
-        for (int i = 0; i < restockChoices.Length; i++)
+        hudView.SetStatus(ChineseTextConfig.ChooseRestock);
+        SetOffers(BuildOffers(null), ChooseRestockItem);
+        SetOfferPopupVisible(true);
+    }
+
+    private void ChooseInitialItem(VendingItemDefinition item)
+    {
+        if (runEnded || sequenceRunning || initialPicksRemaining <= 0)
         {
-            restockChoices[i].SetChoice(offers[i], ChooseRestockItem);
+            return;
         }
+
+        StartCoroutine(HandleInitialChoice(item));
+    }
+
+    private IEnumerator HandleInitialChoice(VendingItemDefinition item)
+    {
+        sequenceRunning = true;
+        SetOfferPopupVisible(false);
+        VendingStockingService.PlaceOneItem(shelf, item, rng);
+        initialPicksRemaining--;
+        shelfView.Render(shelf, null);
+        RenderHud();
+
+        if (initialPicksRemaining > 0)
+        {
+            hudView.SetStatus(ChineseTextConfig.InitialPickAdded(item.displayName, initialPicksRemaining));
+            yield return new WaitForSeconds(0.25f);
+            sequenceRunning = false;
+            PrepareInitialOffers();
+            yield break;
+        }
+
+        hudView.SetStatus(ChineseTextConfig.InitialPicksFinished());
+        yield return new WaitForSeconds(0.35f);
+        sequenceRunning = false;
+        PrepareRestockOffers();
     }
 
     private void ChooseRestockItem(VendingItemDefinition item)
     {
-        if (runEnded)
+        if (runEnded || sequenceRunning || initialPicksRemaining > 0)
         {
             return;
         }
 
+        StartCoroutine(ResolveRound(item));
+    }
+
+    private IEnumerator ResolveRound(VendingItemDefinition item)
+    {
+        sequenceRunning = true;
+        SetOfferPopupVisible(false);
         roundIndex++;
         PickCustomerTag();
         var placement = VendingStockingService.PlaceOneItem(shelf, item, rng);
+        hudView.SetStatus(ChineseTextConfig.SpinStarting);
+        shelfView.Render(shelf, null);
+        yield return new WaitForSeconds(0.12f);
+
         VendingSpinService.RandomizeOccupiedSymbols(shelf, rng);
+        yield return shelfView.PlaySpinAnimation(shelf);
+
         var result = VendingScoringService.Score(shelf, preferredTag);
         currentRoundScore = result.Total;
-        totalMoney += currentRoundScore;
         shelfView.Render(shelf, result.HighlightSlots);
-        hudView.SetStatus(placement.ReplacedExistingItem ? ChineseTextConfig.ShelfFullReplacement : ChineseTextConfig.RoundIncome(roundIndex, currentRoundScore));
+        hudView.SetStatus(ChineseTextConfig.ComboChecking);
+        yield return shelfView.PlayComboAnimation(result.HighlightSlots);
+
+        hudView.SetStatus(ChineseTextConfig.EarningsPlaying);
         hudView.SetLog(result.LogLines);
+        yield return shelfView.PlayEarningAnimation(result.SlotEarnings);
+
+        totalMoney += currentRoundScore;
+        hudView.SetStatus(placement.ReplacedExistingItem ? ChineseTextConfig.ShelfFullReplacement : ChineseTextConfig.RoundIncome(roundIndex, currentRoundScore));
         CheckStageProgress();
         RenderHud();
-        PrepareOffers();
+        sequenceRunning = false;
+
+        if (!runEnded)
+        {
+            PrepareRestockOffers();
+        }
     }
 
     private void CheckStageProgress()
@@ -147,14 +203,14 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     {
         runEnded = true;
         swapMode = false;
-        SetOffersInteractable(false);
+        SetOfferPopupVisible(false);
         hudView.SetStatus(message);
         RenderHud();
     }
 
     private void ToggleSwapMode()
     {
-        if (runEnded || swapUses <= 0 || shelf.All(item => item == null))
+        if (runEnded || sequenceRunning || initialPicksRemaining > 0 || swapUses <= 0 || shelf.All(item => item == null))
         {
             return;
         }
@@ -168,7 +224,7 @@ public sealed class LuckyVendingGameController : MonoBehaviour
 
     private void SelectShelfSlot(int index)
     {
-        if (!swapMode || runEnded || shelf[index] == null)
+        if (!swapMode || sequenceRunning || runEnded || shelf[index] == null)
         {
             return;
         }
@@ -214,15 +270,55 @@ public sealed class LuckyVendingGameController : MonoBehaviour
 
     private void RenderHud()
     {
-        bool canSwap = !runEnded && swapUses > 0 && shelf.Any(item => item != null);
+        bool canSwap = !runEnded && !sequenceRunning && initialPicksRemaining == 0 && swapUses > 0 && shelf.Any(item => item != null);
         hudView.RenderSummary(totalMoney, stageIndex, currentTarget, roundIndex, TotalRounds, preferredTag, swapUses, swapMode, canSwap, runEnded);
     }
 
-    private void SetOffersInteractable(bool interactable)
+    private List<VendingItemDefinition> BuildOffers(string rarityFilter)
+    {
+        var offers = new List<VendingItemDefinition>();
+        var weighted = catalog.BuildWeightedPool(rarityFilter);
+        while (offers.Count < restockChoices.Length)
+        {
+            var candidate = weighted[rng.Next(weighted.Count)];
+            if (!offers.Contains(candidate))
+            {
+                offers.Add(candidate);
+            }
+        }
+
+        return offers;
+    }
+
+    private void SetOffers(List<VendingItemDefinition> offers, Action<VendingItemDefinition> handler)
+    {
+        for (int i = 0; i < restockChoices.Length; i++)
+        {
+            restockChoices[i].SetChoice(offers[i], handler);
+        }
+    }
+
+    private void SetOfferPopupVisible(bool visible)
     {
         foreach (var choice in restockChoices)
         {
-            choice.SetInteractable(interactable);
+            choice.SetInteractable(visible);
         }
+
+        if (offerPopup != null)
+        {
+            offerPopup.SetActive(visible);
+        }
+    }
+
+    private GameObject ResolveOfferPopup()
+    {
+        if (restockChoices == null || restockChoices.Length == 0 || restockChoices[0] == null)
+        {
+            return null;
+        }
+
+        var parent = restockChoices[0].transform.parent;
+        return parent != null && parent.parent != null ? parent.parent.gameObject : restockChoices[0].gameObject;
     }
 }

@@ -11,11 +11,19 @@ public static class VendingScoringService
         int total = 0;
         var log = new List<string>();
         var highlightSlots = new HashSet<int>();
+        var slotEarnings = new Dictionary<int, int>();
         var occupied = shelf.Where(item => item != null).ToList();
 
-        foreach (var item in occupied)
+        for (int i = 0; i < shelf.Length; i++)
         {
+            var item = shelf[i];
+            if (item == null)
+            {
+                continue;
+            }
+
             total += item.baseValue;
+            AddSlotEarning(slotEarnings, i, item.baseValue);
         }
         log.Add("基础售价：+" + total);
 
@@ -38,6 +46,7 @@ public static class VendingScoringService
 
                 int bonus = group.Count * (group.Count - 1) * 3;
                 total += bonus;
+                AddSharedBonus(slotEarnings, group, bonus);
                 foreach (int slot in group)
                 {
                     highlightSlots.Add(slot);
@@ -64,6 +73,7 @@ public static class VendingScoringService
                 {
                     int bonus = count * 4;
                     total += bonus;
+                    var rowSlots = new List<int>();
                     log.Add("第" + (row + 1) + "排" + tag + "：+" + bonus);
                     for (int col = 0; col < GridSize; col++)
                     {
@@ -71,21 +81,28 @@ public static class VendingScoringService
                         if (shelf[slot] != null && shelf[slot].HasTag(tag))
                         {
                             highlightSlots.Add(slot);
+                            rowSlots.Add(slot);
                         }
                     }
+                    AddSharedBonus(slotEarnings, rowSlots, bonus);
                 }
             }
         }
 
-        int customerCount = occupied.Count(item => item.HasTag(preferredTag));
+        var customerSlots = Enumerable.Range(0, shelf.Length).Where(index => shelf[index] != null && shelf[index].HasTag(preferredTag)).ToList();
+        int customerCount = customerSlots.Count;
         if (customerCount > 0)
         {
             int customerBonus = customerCount * 2;
             total += customerBonus;
+            foreach (int slot in customerSlots)
+            {
+                AddSlotEarning(slotEarnings, slot, 2);
+            }
             log.Add("顾客偏好" + preferredTag + " x" + customerCount + "：+" + customerBonus);
         }
 
-        int promoBonus = ScorePromoAdjacency(shelf, highlightSlots);
+        int promoBonus = ScorePromoAdjacency(shelf, highlightSlots, slotEarnings);
         if (promoBonus > 0)
         {
             total += promoBonus;
@@ -93,7 +110,7 @@ public static class VendingScoringService
         }
 
         log.Add("本轮合计：" + total);
-        return new VendingScoreResult(total, log, highlightSlots);
+        return new VendingScoreResult(total, log, highlightSlots, slotEarnings);
     }
 
     private static List<int> CollectConnectedTagGroup(VendingItemDefinition[] shelf, int start, string tag, bool[] visited)
@@ -120,7 +137,7 @@ public static class VendingScoringService
         return group;
     }
 
-    private static int ScorePromoAdjacency(VendingItemDefinition[] shelf, HashSet<int> highlightSlots)
+    private static int ScorePromoAdjacency(VendingItemDefinition[] shelf, HashSet<int> highlightSlots, Dictionary<int, int> slotEarnings)
     {
         int bonus = 0;
         for (int i = 0; i < shelf.Length; i++)
@@ -135,6 +152,7 @@ public static class VendingScoringService
                 if (shelf[neighbor] != null && !shelf[neighbor].HasTag("促销"))
                 {
                     bonus += 5;
+                    AddSharedBonus(slotEarnings, new[] { i, neighbor }, 5);
                     highlightSlots.Add(i);
                     highlightSlots.Add(neighbor);
                 }
@@ -152,5 +170,31 @@ public static class VendingScoringService
         if (row < GridSize - 1) yield return index + GridSize;
         if (col > 0) yield return index - 1;
         if (col < GridSize - 1) yield return index + 1;
+    }
+
+    private static void AddSlotEarning(Dictionary<int, int> slotEarnings, int slot, int amount)
+    {
+        if (!slotEarnings.ContainsKey(slot))
+        {
+            slotEarnings[slot] = 0;
+        }
+
+        slotEarnings[slot] += amount;
+    }
+
+    private static void AddSharedBonus(Dictionary<int, int> slotEarnings, IEnumerable<int> slots, int amount)
+    {
+        var slotList = slots.Distinct().ToList();
+        if (slotList.Count == 0)
+        {
+            return;
+        }
+
+        int baseShare = amount / slotList.Count;
+        int remainder = amount % slotList.Count;
+        for (int i = 0; i < slotList.Count; i++)
+        {
+            AddSlotEarning(slotEarnings, slotList[i], baseShare + (i < remainder ? 1 : 0));
+        }
     }
 }
