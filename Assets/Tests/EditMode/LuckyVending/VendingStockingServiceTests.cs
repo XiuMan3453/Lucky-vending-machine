@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -80,6 +81,35 @@ public sealed class VendingStockingServiceTests
         Assert.IsTrue(result.HighlightSlots.Contains(1));
     }
 
+    [Test]
+    public void RandomizeOccupiedSymbols_PreservesOwnedSymbolsAndEmptySlots()
+    {
+        var shelf = new VendingItemDefinition[VendingScoringService.SlotCount];
+        shelf[0] = CreateItem("water");
+        shelf[1] = CreateItem("soda");
+        shelf[4] = CreateItem("coffee");
+
+        VendingSpinService.RandomizeOccupiedSymbols(shelf, new System.Random(4));
+
+        Assert.AreEqual(3, CountOccupied(shelf));
+        CollectionAssert.AreEquivalent(new[] { "coffee", "soda", "water" }, shelf.Where(item => item != null).Select(item => item.id).ToArray());
+    }
+
+    [Test]
+    public void RandomizeOccupiedSymbols_ChangesPositionsForSeededSpin()
+    {
+        var shelf = new VendingItemDefinition[VendingScoringService.SlotCount];
+        shelf[0] = CreateItem("water");
+        shelf[1] = CreateItem("soda");
+        shelf[4] = CreateItem("coffee");
+
+        var before = shelf.Select(item => item?.id ?? string.Empty).ToArray();
+        VendingSpinService.RandomizeOccupiedSymbols(shelf, new System.Random(4));
+        var after = shelf.Select(item => item?.id ?? string.Empty).ToArray();
+
+        CollectionAssert.AreNotEqual(before, after);
+    }
+
     private static VendingItemDefinition CreateItem(string id)
     {
         if (id == "coffee")
@@ -93,5 +123,19 @@ public sealed class VendingStockingServiceTests
         }
 
         return new VendingItemDefinition("water", "矿泉水", "水", "普通", 8, new[] { "饮料", "健康" }, new Color32(78, 171, 235, 255));
+    }
+
+    private static int CountOccupied(VendingItemDefinition[] shelf)
+    {
+        int occupied = 0;
+        foreach (var item in shelf)
+        {
+            if (item != null)
+            {
+                occupied++;
+            }
+        }
+
+        return occupied;
     }
 }

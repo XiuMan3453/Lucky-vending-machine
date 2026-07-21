@@ -12,7 +12,6 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     public VendingHudView hudView;
     public RestockChoiceView[] restockChoices;
 
-    private readonly List<VendingItemDefinition> itemPool = new List<VendingItemDefinition>();
     private readonly VendingItemDefinition[] shelf = new VendingItemDefinition[VendingScoringService.SlotCount];
     private readonly System.Random rng = new System.Random();
     private readonly int[] stageTargets = { 260, 620, 1050 };
@@ -43,7 +42,6 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     public void StartNewRun()
     {
         Array.Clear(shelf, 0, shelf.Length);
-        itemPool.Clear();
         roundIndex = 0;
         totalMoney = 0;
         stageIndex = 0;
@@ -62,7 +60,7 @@ public sealed class LuckyVendingGameController : MonoBehaviour
         PickCustomerTag();
         shelfView.Render(shelf, null);
         hudView.SetStatus(ChineseTextConfig.InitialStatus);
-        hudView.SetLog(new[] { ChineseTextConfig.InitialLogMatchingTags, ChineseTextConfig.InitialLogNoRandomFill });
+        hudView.SetLog(new[] { ChineseTextConfig.InitialLogMatchingTags, ChineseTextConfig.InitialLogNoRandomFill, ChineseTextConfig.InitialLogSpinAfterPick });
         RenderHud();
         PrepareOffers();
     }
@@ -70,7 +68,6 @@ public sealed class LuckyVendingGameController : MonoBehaviour
     private void AddStartingItem(string id, int slot)
     {
         var item = catalog.GetById(id);
-        itemPool.Add(item);
         shelf[slot] = item;
     }
 
@@ -106,10 +103,10 @@ public sealed class LuckyVendingGameController : MonoBehaviour
             return;
         }
 
-        itemPool.Add(item);
         roundIndex++;
         PickCustomerTag();
         var placement = VendingStockingService.PlaceOneItem(shelf, item, rng);
+        VendingSpinService.RandomizeOccupiedSymbols(shelf, rng);
         var result = VendingScoringService.Score(shelf, preferredTag);
         currentRoundScore = result.Total;
         totalMoney += currentRoundScore;

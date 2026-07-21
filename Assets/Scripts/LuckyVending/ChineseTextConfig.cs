@@ -1,9 +1,10 @@
 public static class ChineseTextConfig
 {
-    public const string InitialStatus = "选择一个补货商品，它会加入货架中的一个空格。";
+    public const string InitialStatus = "选择一个补货商品，加入后会旋转货架并结算。";
     public const string InitialLogMatchingTags = "相同标签上下左右相连会加钱。";
-    public const string InitialLogNoRandomFill = "货架不会再一开始被随机填满。";
-    public const string ShelfFullReplacement = "货架已满，新商品替换了一个随机格子。";
+    public const string InitialLogNoRandomFill = "未拥有的符号不会凭空出现。";
+    public const string InitialLogSpinAfterPick = "每次补货后都会旋转一次。";
+    public const string ShelfFullReplacement = "货架已满，新商品替换后完成旋转。";
     public const string SwapSelecting = "交换模式：请选择两个已有商品的格子。";
     public const string SwapCancelled = "已取消交换。";
     public const string SelectSecondSlot = "。请选择第二个格子。";
@@ -11,7 +12,7 @@ public static class ChineseTextConfig
 
     public static string RoundIncome(int roundIndex, int score)
     {
-        return "第 " + roundIndex + " 回合收入 " + score + "。需要时可用交换道具。";
+        return "第 " + roundIndex + " 回合旋转后收入 " + score + "。需要时可用交换道具。";
     }
 
     public static string RunCompleted(int totalMoney)
