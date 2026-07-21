@@ -1,0 +1,124 @@
+version: 1
+name: codex-multi-agent-game-production-team
+description: >
+  A six-agent setup for testing planning, coding, art direction, AI Code With
+  ImageGen asset production, and result validation under a single controller.
+
+agents:
+  - id: control-agent
+    role: controller
+    prompt_file: .agents/prompts/control-agent.md
+    owns:
+      - task decomposition
+      - delegation
+      - integration
+      - final delivery
+    may_edit:
+      - README.md
+      - docs/**
+      - experiments/**
+      - integration files explicitly assigned by the user
+    must_not:
+      - hide unresolved conflicts
+      - overwrite another agent's work without reviewing it
+
+  - id: planning-agent
+    role: planner
+    prompt_file: .agents/prompts/planning-agent.md
+    owns:
+      - requirements breakdown
+      - milestones
+      - dependency graph
+      - acceptance criteria
+    may_edit:
+      - docs/plans/**
+      - experiments/**/plan.md
+    must_not:
+      - implement production code
+      - generate final image assets
+
+  - id: coding-agent
+    role: implementation
+    prompt_file: .agents/prompts/coding-agent.md
+    owns:
+      - code implementation
+      - automated tests
+      - build and runtime verification
+    may_edit:
+      - src/**
+      - tests/**
+      - package files
+      - build configuration
+      - implementation files explicitly assigned by control-agent
+    must_not:
+      - change art direction without approval
+      - generate image assets unless explicitly reassigned
+
+  - id: art-direction-agent
+    role: art_director
+    prompt_file: .agents/prompts/art-direction-agent.md
+    owns:
+      - visual style
+      - asset list
+      - image generation prompts
+      - visual consistency checks
+    may_edit:
+      - docs/art/**
+      - experiments/**/art-brief.md
+      - experiments/**/asset-prompts.md
+    must_not:
+      - call image generation APIs
+      - modify production code
+
+  - id: imagegen-agent
+    role: image_generation
+    prompt_file: .agents/prompts/imagegen-agent.md
+    owns:
+      - AI Code With ImageGen execution
+      - downloaded raster assets
+      - generation metadata
+      - visual inspection notes
+    required_skill: aicodewith-imagegen
+    may_edit:
+      - assets/generated/imagegen/**
+      - experiments/**/imagegen-results.md
+    must_not:
+      - invent API credentials
+      - place API keys in files, prompts, commands, or logs
+      - rewrite art direction prompts except to make them operational
+
+  - id: testing-agent
+    role: result_validation
+    prompt_file: .agents/prompts/testing-agent.md
+    owns:
+      - acceptance testing
+      - regression checks
+      - build and runtime verification review
+      - generated asset integration checks
+      - test result reporting
+    may_edit:
+      - docs/testing/**
+      - experiments/**/test-results.md
+    must_not:
+      - implement production code unless explicitly reassigned
+      - change generated art assets
+      - hide failed tests or unverified acceptance criteria
+      - mark work complete without evidence
+
+handoff_contract:
+  template: .agents/templates/handoff.md
+  required_fields:
+    - objective
+    - input_context
+    - output_expected
+    - owned_files
+    - constraints
+    - validation
+    - risks
+
+artifact_locations:
+  plans: docs/plans
+  art_briefs: docs/art
+  test_reports: docs/testing
+  generated_images: assets/generated/imagegen
+  experiment_logs: experiments

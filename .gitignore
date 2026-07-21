@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+
+# Unity generated files
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity crash and profiler output
+sysinfo.txt
+*.stackdump
+*.raw
+*.snap
+
+# Local screenshots and smoke-test captures
+/Assets/Screenshots/
+
+# IDE
+.idea/
+.vscode/
+
+# Build artifacts
+*.apk
+*.aab
+*.unitypackage
+*.app
