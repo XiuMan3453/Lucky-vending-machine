@@ -61,8 +61,20 @@ public sealed class DeveloperCatalogTool : MonoBehaviour
 
         catalog.EnsureDefaults();
         catalogText.text = DeveloperCatalogFormatter.BuildGroupedCatalogText(catalog.Items);
-        var rectTransform = catalogText.rectTransform;
-        rectTransform.sizeDelta = new Vector2(rectTransform.sizeDelta.x, Mathf.Max(420f, catalogText.preferredHeight + 24f));
+        UpdateScrollContentHeight();
+    }
+
+    private void UpdateScrollContentHeight()
+    {
+        var textRect = catalogText.rectTransform;
+        float contentHeight = Mathf.Max(420f, catalogText.preferredHeight + 24f);
+        textRect.sizeDelta = new Vector2(textRect.sizeDelta.x, contentHeight);
+
+        var contentRect = textRect.parent as RectTransform;
+        if (contentRect != null)
+        {
+            contentRect.sizeDelta = new Vector2(contentRect.sizeDelta.x, contentHeight);
+        }
     }
 
     private void SetPanelVisible(bool visible)
