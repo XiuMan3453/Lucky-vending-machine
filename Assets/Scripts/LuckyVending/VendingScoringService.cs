@@ -109,6 +109,9 @@ public static class VendingScoringService
             log.Add("促销相邻：+" + promoBonus);
         }
 
+        int specialBonus = ScoreSpecialRules(shelf, highlightSlots, slotEarnings, log);
+        total += specialBonus;
+
         log.Add("本轮合计：" + total);
         return new VendingScoreResult(total, log, highlightSlots, slotEarnings);
     }
@@ -162,6 +165,134 @@ public static class VendingScoringService
         return bonus;
     }
 
+    private static int ScoreSpecialRules(VendingItemDefinition[] shelf, HashSet<int> highlightSlots, Dictionary<int, int> slotEarnings, List<string> log)
+    {
+        int totalBonus = 0;
+        for (int i = 0; i < shelf.Length; i++)
+        {
+            var item = shelf[i];
+            if (item == null || string.IsNullOrEmpty(item.specialRule))
+            {
+                continue;
+            }
+
+            if (item.specialRule == "double_adjacent")
+            {
+                int bonus = ScoreDoubleAdjacent(shelf, i, highlightSlots, slotEarnings);
+                totalBonus += bonus;
+                if (bonus > 0)
+                {
+                    log.Add(item.displayName + "相邻翻倍：+" + bonus);
+                }
+                continue;
+            }
+
+            if (item.specialRule == "boost_row")
+            {
+                int bonus = ScoreBoostRow(shelf, i, highlightSlots, slotEarnings);
+                totalBonus += bonus;
+                if (bonus > 0)
+                {
+                    log.Add(item.displayName + "强化整排：+" + bonus);
+                }
+                continue;
+            }
+
+            if (item.specialRule == "boost_tag_group")
+            {
+                int bonus = ScoreBoostTagGroup(shelf, i, highlightSlots, slotEarnings);
+                totalBonus += bonus;
+                if (bonus > 0)
+                {
+                    log.Add(item.displayName + "强化标签组：+" + bonus);
+                }
+            }
+        }
+
+        return totalBonus;
+    }
+
+    private static int ScoreDoubleAdjacent(VendingItemDefinition[] shelf, int specialSlot, HashSet<int> highlightSlots, Dictionary<int, int> slotEarnings)
+    {
+        int bonus = 0;
+        foreach (int neighbor in GetNeighbors(specialSlot))
+        {
+            var neighborItem = shelf[neighbor];
+            if (neighborItem == null || neighborItem.HasTag("促销"))
+            {
+                continue;
+            }
+
+            int amount = GetCurrentSlotEarning(slotEarnings, neighbor);
+            if (amount <= 0)
+            {
+                amount = neighborItem.baseValue;
+            }
+
+            bonus += amount;
+            AddSlotEarning(slotEarnings, neighbor, amount);
+            highlightSlots.Add(specialSlot);
+            highlightSlots.Add(neighbor);
+        }
+
+        return bonus;
+    }
+
+    private static int ScoreBoostRow(VendingItemDefinition[] shelf, int specialSlot, HashSet<int> highlightSlots, Dictionary<int, int> slotEarnings)
+    {
+        int row = specialSlot / GridSize;
+        int bonus = 0;
+        for (int col = 0; col < GridSize; col++)
+        {
+            int slot = row * GridSize + col;
+            var item = shelf[slot];
+            if (item == null || slot == specialSlot)
+            {
+                continue;
+            }
+
+            int amount = item.HasTag("促销") ? 3 : 6;
+            bonus += amount;
+            AddSlotEarning(slotEarnings, slot, amount);
+            highlightSlots.Add(specialSlot);
+            highlightSlots.Add(slot);
+        }
+
+        return bonus;
+    }
+
+    private static int ScoreBoostTagGroup(VendingItemDefinition[] shelf, int specialSlot, HashSet<int> highlightSlots, Dictionary<int, int> slotEarnings)
+    {
+        var neighborTags = GetNeighbors(specialSlot)
+            .Where(slot => shelf[slot] != null && !shelf[slot].HasTag("促销"))
+            .SelectMany(slot => shelf[slot].tags)
+            .Where(tag => tag != "促销")
+            .GroupBy(tag => tag)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .Select(group => group.Key)
+            .ToList();
+
+        if (neighborTags.Count == 0)
+        {
+            return 0;
+        }
+
+        string targetTag = neighborTags[0];
+        var affectedSlots = Enumerable.Range(0, shelf.Length)
+            .Where(slot => shelf[slot] != null && shelf[slot].HasTag(targetTag))
+            .ToList();
+
+        int bonus = affectedSlots.Count * 4;
+        foreach (int slot in affectedSlots)
+        {
+            AddSlotEarning(slotEarnings, slot, 4);
+            highlightSlots.Add(slot);
+        }
+        highlightSlots.Add(specialSlot);
+        return bonus;
+    }
+
     private static IEnumerable<int> GetNeighbors(int index)
     {
         int row = index / GridSize;
@@ -180,6 +311,11 @@ public static class VendingScoringService
         }
 
         slotEarnings[slot] += amount;
+    }
+
+    private static int GetCurrentSlotEarning(Dictionary<int, int> slotEarnings, int slot)
+    {
+        return slotEarnings.ContainsKey(slot) ? slotEarnings[slot] : 0;
     }
 
     private static void AddSharedBonus(Dictionary<int, int> slotEarnings, IEnumerable<int> slots, int amount)

@@ -11,9 +11,10 @@ public sealed class VendingItemDefinition
     public string rarity;
     public int baseValue;
     public string[] tags;
+    public string specialRule;
     public Color32 color;
 
-    public VendingItemDefinition(string id, string displayName, string shortCode, string rarity, int baseValue, string[] tags, Color32 color)
+    public VendingItemDefinition(string id, string displayName, string shortCode, string rarity, int baseValue, string[] tags, Color32 color, string specialRule = "")
     {
         this.id = id;
         this.displayName = displayName;
@@ -21,6 +22,7 @@ public sealed class VendingItemDefinition
         this.rarity = rarity;
         this.baseValue = baseValue;
         this.tags = tags;
+        this.specialRule = specialRule;
         this.color = color;
     }
 
