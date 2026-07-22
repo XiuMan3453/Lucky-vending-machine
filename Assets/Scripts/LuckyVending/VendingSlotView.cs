@@ -54,7 +54,7 @@ public sealed class VendingSlotView : MonoBehaviour
             return;
         }
 
-        background.color = emphasized ? Lighten(currentItem.color, 90) : currentHighlighted ? Lighten(currentItem.color) : currentItem.color;
+        background.color = emphasized ? Lighten(currentItem.color, 90) : currentItem.color;
         transform.localScale = emphasized ? baseScale * 1.08f : baseScale;
     }
 

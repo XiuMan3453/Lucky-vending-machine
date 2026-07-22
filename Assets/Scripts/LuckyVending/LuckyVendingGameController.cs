@@ -165,8 +165,8 @@ public sealed class LuckyVendingGameController : MonoBehaviour
         totalMoney += currentRoundScore;
         hudView.SetStatus(placement.ReplacedExistingItem ? ChineseTextConfig.ShelfFullReplacement : ChineseTextConfig.RoundIncome(roundIndex, currentRoundScore));
         CheckStageProgress();
-        RenderHud();
         sequenceRunning = false;
+        RenderHud();
 
         if (!runEnded)
         {
@@ -218,6 +218,7 @@ public sealed class LuckyVendingGameController : MonoBehaviour
         swapMode = !swapMode;
         selectedSwapIndex = -1;
         hudView.SetStatus(swapMode ? ChineseTextConfig.SwapSelecting : ChineseTextConfig.SwapCancelled);
+        SetOfferPopupVisible(!swapMode);
         shelfView.Render(shelf, null);
         RenderHud();
     }
@@ -260,6 +261,10 @@ public sealed class LuckyVendingGameController : MonoBehaviour
         hudView.SetStatus(ChineseTextConfig.SwapDelta(currentRoundScore - oldRoundScore));
         hudView.SetLog(result.LogLines);
         RenderHud();
+        if (!runEnded)
+        {
+            PrepareRestockOffers();
+        }
     }
 
     private void PickCustomerTag()

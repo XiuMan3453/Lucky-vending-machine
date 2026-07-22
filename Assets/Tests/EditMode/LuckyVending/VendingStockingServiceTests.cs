@@ -251,6 +251,37 @@ public sealed class VendingStockingServiceTests
         Assert.GreaterOrEqual(result.SlotEarnings[9], shelf[9].baseValue + 4);
     }
 
+    [Test]
+    public void SlotComboEmphasis_ReturnsToOriginalItemColor()
+    {
+        var slotObject = new GameObject("Slot");
+        var backgroundObject = new GameObject("Background");
+        var labelObject = new GameObject("Label");
+        var earningObject = new GameObject("Earning");
+        try
+        {
+            backgroundObject.transform.SetParent(slotObject.transform);
+            labelObject.transform.SetParent(slotObject.transform);
+            earningObject.transform.SetParent(slotObject.transform);
+
+            var slot = slotObject.AddComponent<VendingSlotView>();
+            slot.background = backgroundObject.AddComponent<UnityEngine.UI.Image>();
+            slot.label = labelObject.AddComponent<UnityEngine.UI.Text>();
+            slot.earningText = earningObject.AddComponent<UnityEngine.UI.Text>();
+            var item = CreateItem("water");
+
+            slot.Render(item, new HashSet<int> { 0 });
+            slot.SetComboEmphasis(true);
+            slot.SetComboEmphasis(false);
+
+            Assert.AreEqual(item.color, slot.background.color);
+        }
+        finally
+        {
+            Object.DestroyImmediate(slotObject);
+        }
+    }
+
     private static VendingItemDefinition CreateItem(string id)
     {
         if (id == "coffee")
